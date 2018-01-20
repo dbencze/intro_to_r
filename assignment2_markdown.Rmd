@@ -1,0 +1,180 @@
+---
+title: ""
+output: html_document
+---
+<center>
+## Introduction to R programming, assignment 2: Exploring and analyzing datasets  
+  
+</center> 
+### The dataset  
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+setwd("D:/BME Kogtan/PHD/ELÕADÁSOK/2017 õsz - Introduction to R/assignment_2")
+library(tidyverse)
+library(gridExtra)
+library(broom)
+data<-read_csv("happy_data.csv")
+data
+
+data2<-drop_na(data) %>% 
+    mutate(health=factor(health))
+ 
+
+```
+  
+    
+    
+The examined dataset is a part of the American General Social Survey, and contains variables related to happiness from the year 2006, collected from 4415 participants. The variables included in this analysis were age (in years), sex, degree (highest education), finrela (relative financial status), happy (happiness), health and marital (marital status).  
+    
+
+***
+  
+  
+### Exploratory data analysis  
+  
+To explore the data, first I created individual plots for the variables to visualize their distributions. Since age was the only continuous variable in the dataset, I illustrated its distribution with a histogram and summarized the main descriptive statistics in a table (fig. 1). The figure shows that people between ages of 18 and 89 participated in the survey, with a mean age of 47.32. The histogram is skewed to the left, which shows that only a fewer portion of the participants were in their 60’s or above. There are not seem to be any outliers or unusual values.  
+  
+  
+  
+<center>
+<div style="width:500px">
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.width=12}
+
+p1<-ggplot(data2, aes(x=age))+
+  geom_histogram(binwidth=1, fill="#005566")
+
+ stat_age<-data2 %>% 
+   summarize(mean=mean(age), sd=sd(age),variance=var(age), median=median(age), 
+             iqr=IQR(age), min=min(age), max=max(age)) %>% 
+   round(., digits=2) %>% 
+   t()
+ 
+ stat_age2<-tableGrob(stat_age)
+ 
+ plot1<-grid.arrange(p1, stat_age2, ncol=2,nrow=1)
+ 
+```
+
+</center>
+  
+  
+  
+    
+The other six variables were categorical, fig. 2 contains the bar charts with their distributions. Looking at the most frequent categories of these variables we can see that more females participated in the survey, than males, and most of the participants were pretty happy. Their demographic data showed that most of the participants were married, had a high school diploma, average financial state and good health.  
+  
+  
+  
+<center>
+<div style="width:1000px">
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+p2<-ggplot(data2, aes(x=happy, fill=happy))+
+   geom_bar()+
+   guides(fill=FALSE)
+ 
+ p3<-ggplot(data2, aes(x=sex, fill=sex))+
+   geom_bar()+
+   guides(fill=FALSE)
+ 
+ p4<-ggplot(data2, aes(x=marital, fill=marital))+
+   geom_bar()+
+   guides(fill=FALSE)
+ 
+ p5<-ggplot(data2, aes(x=degree, fill=degree))+
+   geom_bar()+
+   guides(fill=FALSE)+
+   scale_x_discrete(limits=c("lt high school","high school","junior college", "bachelor", "graduate"))
+ 
+ p6<-ggplot(data2, aes(x=finrela, fill=finrela))+
+   geom_bar()+
+   guides(fill=FALSE)+
+   scale_x_discrete(limits=c("far below average","below average","average", "above average", "far above average"))
+ 
+ p7<-ggplot(data2, aes(x=health, fill=health))+
+   geom_bar()+
+   guides(fill=FALSE)+
+   scale_x_discrete(limits=c("poor","fair","good", "excellent"))
+
+plot2<-grid.arrange(p3, p2, p4, p5, p6, p7, ncol=2,nrow=3)
+
+
+```
+</center>
+  
+  
+  
+  
+I explored the relationship between health and age, since it is reasonable to assume that health is deteriorating with age. The density plot of age broken down by health categories shows a more felt-aligned shape for excellent and good health, and a more right-aligned shape for poor and fair (fig. 3). This is suggesting that there are differences between the health conditions regarding the age of the participants.  
+  
+  
+  
+<center>
+<div style="width:500px">
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data2) +
+  aes(x = age, fill = health) +
+  geom_density(alpha = .5)+
+  scale_fill_discrete(breaks=c("poor","fair","good", "excellent"))
+```
+</center>
+  
+  
+***
+  
+  
+### Hypothesis and modeling  
+  
+I hypothesized that there is a difference between health conditions regarding the age of the participants, as better health is more common for younger, and worse health is more common for relatively older people.  
+  
+Testing variance homogenity
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Checking homogeneity of variance
+bartlett.test(age ~ health, data = data2)
+```
+  
+ANOVA & eta squared
+```{r between-subjects ANOVA, echo=FALSE, message=FALSE, warning=FALSE}
+# Running the ANOVA
+anova_result <- aov(age ~ health, data = data2)
+tidy(anova_result)
+sjstats::eta_sq(anova_result)
+
+```
+  
+Contrasts
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+mat <- cbind("p+f vs g+e"=c(-1, 1, -1, 1))
+contrasts(data2$health) <- mat
+summary.lm(aov(age ~ health, data=data2))
+
+
+```
+Descriptives  
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+data2 %>% 
+  group_by(health) %>% 
+  summarise(age_mean = mean(age),
+            age_sd = sd(age))
+
+```
+  
+I tested my hypothesis using between groups ANOVA. The Bartlett test showed that the assumption of the homogeneity of variance (K2(3) = 11.423, p<0.01) is violated, which would otherwise mean that I should perform a non-parametric test instead of ANOVA. The between-groups ANOVA showed a significant difference between the health condition groups (poor: M=55.80, SD=15.24; fair: M=51.56, SD=18.11; good: M=46.53, SD=17.05; excellent: M=43.86, SD=15.74), F(3, 1969)=25.96, p<0.001, ???2=0.038. Using an additional contrast analysis I found that participants with relatively worse health condition (poor & fair) were significantly older, than participants with relatively better health (good & excellent), t(1969)=8,339, p<0,001.  
+  
+  
+  
+This support the hypothesis that we can find younger participants in the groups reporting better health conditions, and older participants in the groups reporting worse health, presumably because health is declining with age.
+
+  
+  
+<center>
+<div style="width:500px">
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data2, aes(health, age, fill=health)) + 
+  geom_boxplot()+
+  guides(fill=FALSE)+
+  scale_x_discrete(limits=c("poor","fair","good", "excellent"))
+
+```
+</center>
